@@ -6,7 +6,8 @@ let inited = false;
 function normalizeSql(sql) {
   return String(sql || '')
     .replace(/CURRENT_TIMESTAMP\s*\(\s*\)/gi, 'CURRENT_TIMESTAMP')
-    .replace(/^\s*INSERT\s+OR\s+IGNORE\s+INTO\s+/i, 'INSERT IGNORE INTO ');
+    .replace(/^\s*INSERT\s+OR\s+IGNORE\s+INTO\s+/i, 'INSERT IGNORE INTO ')
+    .replace(/datetime\(\s*([a-zA-Z0-9_.`]+)\s*\)/gi, '$1');
 }
 
 function mapRows(rows) {
