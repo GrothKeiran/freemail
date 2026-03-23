@@ -44,6 +44,10 @@ export async function loadMailboxes(params = {}) {
   if (params.forward) query.set('forward', params.forward);
   
   const r = await api(`/api/mailboxes?${query.toString()}`);
+  if (!r.ok) {
+    const text = await r.text().catch(() => '');
+    throw new Error(text || `HTTP ${r.status}`);
+  }
   return r.json();
 }
 
