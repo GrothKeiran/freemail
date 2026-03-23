@@ -103,7 +103,7 @@ async function load() {
     bindCardEvents();
   } catch (e) {
     console.error('加载失败:', e);
-    showToast('加载失败', 'error');
+    showToast(e?.message || '加载失败', 'error');
   } finally {
     isLoading = false;
   }
