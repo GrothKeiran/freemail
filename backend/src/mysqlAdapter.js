@@ -4,7 +4,9 @@ let pool;
 let inited = false;
 
 function normalizeSql(sql) {
-  return String(sql || '').replace(/CURRENT_TIMESTAMP\s*\(\s*\)/gi, 'CURRENT_TIMESTAMP');
+  return String(sql || '')
+    .replace(/CURRENT_TIMESTAMP\s*\(\s*\)/gi, 'CURRENT_TIMESTAMP')
+    .replace(/^\s*INSERT\s+OR\s+IGNORE\s+INTO\s+/i, 'INSERT IGNORE INTO ');
 }
 
 function mapRows(rows) {
