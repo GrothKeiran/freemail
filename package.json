@@ -1,0 +1,15 @@
+{
+  "name": "freemail-selfhost-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:backend": "node --watch backend/src/server.js",
+    "start:backend": "node backend/src/server.js",
+    "check": "node --check src/server.js && node --check backend/src/server.js && node --check backend/src/mysqlAdapter.js && node --check backend/src/localStorage.js && node --check backend/src/bridgeClient.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "mysql2": "^3.15.2"
+  }
+}

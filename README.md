@@ -1,211 +1,154 @@
-# Freemail - 临时邮箱服务
+# Freemail - 临时邮箱服务（Worker + 自建后端版）
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/idinging/freemail)
+这是基于原 `idinging/freemail` 改造的自部署版本。
 
-一个基于 Cloudflare Workers + D1 + R2 构建的**开源临时邮箱服务**，支持邮件接收、发送、转发、用户管理等完整功能。
+## 这次改造的核心目标
 
-**当前版本：V4.8** - 新增单个邮件转发和收藏功能
+- **保留 Cloudflare Worker**：继续负责前端静态资源、邮件入口、边缘访问
+- **移除对 D1 / R2 的强依赖**：改为 **MySQL + 本地磁盘（可配置存储目录）**
+- **优先采用桥接架构**：Worker 通过 HTTP 调用你的自建后端
+- **尽量保持前端使用体验一致**：浏览器仍走 Worker 域名，前端接口路径仍是 `/api/*`
 
-`转发的地址需要在cloudflare Email Addresses中验证`
+## 新架构
 
-📖 **[一键部署指南](docs/yijianbushu.md)** | 📬 **[Resend 发件配置](docs/resend.md)** | 📚 **[API 文档](docs/api.md)**
+```text
+Browser
+  -> Cloudflare Worker (静态资源 + 同域入口)
+  -> Worker 把 /api/* 代理到自建后端
 
-## 📸 项目展示
-### 体验地址： https://mailexhibit.dinging.top/
+Cloudflare Email Routing
+  -> Worker email() 事件
+  -> Worker 把邮件原文 POST 到自建后端
 
-### 体验账号： guest
-### 体验密码： admin
-### 页面展示
+Self-hosted Backend (Node.js)
+  -> MySQL 持久化
+  -> 本地磁盘保存 EML
+```
 
-#### 登陆
-![登陆页面](pic/dlu.png)
-#### 首页
-![首页展示](pic/shouye.png)
+## 仓库重点
 
-### 手机端生成与历史
-<div style="display: flex; gap: 20px; justify-content: center; margin: 20px 0;">
-  <img src="./pic/phone/shouye.png" alt="手机端生成邮箱" style="height: 400px;" />
-  <img src="./pic/phone/lishi.png" alt="手机端历史邮箱" style="height: 400px;" />
-</div>
+### 1) Worker 端
 
-### 单个邮箱页
+- `src/server.js`
+  - `/api/*` → 转发到 `BACKEND_BASE_URL/bridge-api/*`
+  - `email()` → 把邮件解析后 POST 到 `BACKEND_BASE_URL/bridge-email`
+  - 静态资源仍由 Worker 提供
 
-![单个邮箱首页](./pic/v4/youxiang.png)
+### 2) 自建后端
 
-### 全部邮箱预览
-![单个邮箱首页](./pic/v4/xiugaiquanju.png)
-![单个邮箱首页](./pic/v4/liebiao.png)
+新增：
 
+- `backend/src/server.js`
+- `backend/src/mysqlAdapter.js`
+- `backend/src/localStorage.js`
+- `backend/src/bridgeClient.js`
 
-#### [更多展示点击查看](docs/zhanshi.md)
+后端复用了原项目大部分业务逻辑：
 
-## 功能特性
+- `src/routes/*`
+- `src/api/*`
+- `src/assets/*`
+- `src/email/parser.js`
+- `src/db/*`
 
-| 类别 | 特性 |
-|------|------|
-| 📧 **邮箱管理** | 随机生成临时邮箱 · 多域名支持 · 置顶/收藏 · 历史记录 · 邮箱搜索 |
-| 💌 **邮件功能** | 实时接收 · 自动刷新 · 验证码智能提取 · HTML/纯文本 · 邮件转发 |
-| ✉️ **发件支持** | Resend API 集成 · 多域名密钥 · 批量发送 · 定时发送 · 发件记录 |
-| 👥 **用户管理** | 三层权限模型 · 用户/邮箱分配 · 邮箱单点登录 · 登录权限控制 |
-| 🎨 **现代界面** | 毛玻璃效果 · 响应式设计 · 移动端适配 · 列表/卡片视图 |
-| ⚡ **技术架构** | Cloudflare Workers · D1 数据库 · R2 存储 · Email Routing |
+只是把底层存储替换为：
 
-> 💡 邮箱用户自行修改密码功能默认关闭，如需开启请将 `mailbox.html` 第 77-80 行取消注释。
+- MySQL 适配器
+- 本地文件存储
 
-## 版本历史
+## 快速开始
 
-<details>
-<summary><strong>V4.8</strong>（当前版本）- 邮件转发和收藏</summary>
+### 本地安装
 
-- 邮箱管理页面支持按转发/收藏状态筛选
-- 支持将指定邮箱转发到目标邮箱
-- 批量前缀转发可通过 `FORWARD_RULES` 环境变量配置
-</details>
-
-<details>
-<summary><strong>V4.5</strong> - 多域名发送配置</summary>
-
-- 支持为不同域名配置不同的 Resend API 密钥
-- 支持键值对、JSON、单密钥三种配置格式
-- 系统根据发件人域名自动选择 API 密钥
-</details>
-
-<details>
-<summary><strong>V4.0</strong> - 邮箱登录与全局管理</summary>
-
-- 支持邮箱地址单点登录
-- 全局邮箱管理功能，可限制单个邮箱登录
-- 邮箱搜索、随机人名生成、列表/卡片视图切换
-</details>
-
-<details>
-<summary><strong>V3.x</strong> - 用户管理与性能优化</summary>
-
-- V3.5：数据库查询优化、R2 存储完整 EML、移动端适配
-- V3.0：三层权限模型、用户管理后台、前端权限防护
-</details>
-
-<details>
-<summary><strong>V1.x ~ V2.x</strong> - 基础功能</summary>
-
-- V2.0：Resend 发件集成、邮箱置顶
-- V1.0：邮箱生成、邮件接收、验证码提取
-</details>
-
-## 部署配置
-
-### 快速开始
-
-1. **一键部署**：点击顶部按钮，按照 [部署指南](docs/yijianbushu.md) 完成配置
-2. **配置邮件路由**（收件必需）：域名 → Email Routing → Catch-all → 绑定 Worker
-3. **配置发件**（可选）：参考 [Resend 配置教程](docs/resend.md)
-
-> 使用 Git 集成部署时，请在 Workers → Settings → Variables 中手动配置环境变量
+```bash
+npm install
+```
 
 ### 环境变量
 
-| 变量名 | 说明 | 必需 |
-|--------|------|------|
-| TEMP_MAIL_DB | D1 数据库绑定 | 是 |
-| MAIL_EML | R2 存储桶绑定 | 是 |
-| MAIL_DOMAIN | 邮箱域名，多个用逗号分隔 | 是 |
-| ADMIN_PASSWORD | 严格管理员密码 | 是 |
-| ADMIN_NAME | 严格管理员用户名（默认 `admin`） | 否 |
-| JWT_TOKEN | JWT 签名密钥 | 是 |
-| RESEND_API_KEY | Resend 发件密钥，支持多域名配置 | 否 |
-| FORWARD_RULES | 邮件转发规则 | 否 |
-
-<details>
-<summary><strong>RESEND_API_KEY 配置格式</strong></summary>
-
 ```bash
-# 单密钥（向后兼容）
-RESEND_API_KEY="re_xxxxxxxxxxxxxxxxxxxxxxxx"
-
-# 键值对格式（推荐）
-RESEND_API_KEY="domain1.com=re_key1,domain2.com=re_key2"
-
-# JSON格式
-RESEND_API_KEY='{"domain1.com":"re_key1","domain2.com":"re_key2"}'
+cp .env.example .env
 ```
 
-系统会根据发件人域名自动选择对应的 API 密钥。
-</details>
+至少填写：
 
-<details>
-<summary><strong>FORWARD_RULES 配置格式</strong></summary>
+```env
+BACKEND_BASE_URL=https://mail-api.example.com
+BRIDGE_API_TOKEN=change-me
+MAIL_DOMAIN=temp.example.com
+ADMIN_NAME=admin
+ADMIN_PASSWORD=change-me
+JWT_TOKEN=change-me
 
-规则按前缀匹配，`*` 为兜底规则。
+PORT=8788
+STORAGE_ROOT=/www/wwwroot/freemail/data/mail-storage
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_USER=freemail
+MYSQL_PASSWORD=change-me
+MYSQL_DATABASE=freemail
+```
 
-⚠️ **重要**：转发目标邮箱必须在 Cloudflare 控制台中验证后才能使用：
-1. 进入 Cloudflare 控制台 → 域名 → 电子邮件 → 电子邮件路由
-2. 切换到「目标地址」选项卡
-3. 点击「添加目标地址」，输入转发目标邮箱
-4. 前往目标邮箱收取验证邮件并点击确认链接
-
-![转发目标地址验证](pic/resend/zhuanfa.png)
+### 启动自建后端
 
 ```bash
-# 键值对格式
-FORWARD_RULES="vip=a@example.com,news=b@example.com,*=fallback@example.com"
-
-# JSON格式
-FORWARD_RULES='[{"prefix":"vip","email":"a@example.com"},{"prefix":"*","email":"fallback@example.com"}]'
-
-# 禁用转发
-FORWARD_RULES="" 或 "disabled" 或 "none"
+npm run start:backend
 ```
-</details>
 
-## 故障排除
-
-<details>
-<summary><strong>常见问题</strong></summary>
-
-1. **邮件接收不到**：检查 Email Routing 配置、MX 记录、MAIL_DOMAIN 变量
-2. **数据库连接错误**：确认 D1 绑定名为 `TEMP_MAIL_DB`，检查 database_id
-3. **登录问题**：确认 ADMIN_PASSWORD 和 JWT_TOKEN 已设置，清除浏览器缓存
-4. **界面显示异常**：检查静态资源路径，查看浏览器控制台错误
-</details>
-
-<details>
-<summary><strong>调试技巧</strong></summary>
+### 静态检查
 
 ```bash
-# 本地调试
-wrangler dev
-
-# 查看实时日志
-wrangler tail
-
-# 检查数据库
-wrangler d1 execute TEMP_MAIL_DB --command "SELECT * FROM mailboxes LIMIT 10"
+npm run check
 ```
-</details>
 
-## 注意事项
+## 部署文档
 
-- **静态资源缓存**：更新后在 Cloudflare 控制台 Purge Everything，浏览器强制刷新
-- **R2/D1 费用**：有免费额度限制，建议定期清理过期邮件
-- **安全**：生产环境务必修改默认的 `ADMIN_PASSWORD` 和 `JWT_TOKEN`
+详见：
 
-## Star History
+- [`docs/DEPLOY_SELFHOST_CN.md`](docs/DEPLOY_SELFHOST_CN.md)
 
-[![Star History Chart](https://api.star-history.com/svg?repos=idinging/freemail&type=Date)](https://www.star-history.com/#idinging/freemail&Date)
+内容包含：
 
-## 联系方式
+- Cloudflare Worker 配置
+- 宝塔 / Nginx 反代
+- MySQL 初始化
+- 本地磁盘存储目录
+- 环境变量说明
+- systemd 方式部署 Node 后端
+- 常见问题
 
-- 微信：`iYear1213`
+## 与原版的主要差异
 
-## Buy me a coffee
+| 项目 | 原版 | 本改造版 |
+|---|---|---|
+| 数据库 | Cloudflare D1 | MySQL |
+| 邮件原文存储 | Cloudflare R2 | 本地磁盘 / 可配置目录 |
+| 前端 | Worker 静态资源 | Worker 静态资源 |
+| API 执行位置 | Worker 内直接执行 | Worker 转发到自建后端 |
+| 邮件入口 | Worker email() | Worker email() + 后端桥接 |
 
-如果你觉得本项目对你有帮助，欢迎赞赏支持：
+## 兼容性说明
 
-<p align="left">
-  <img src="pic/alipay.jpg" alt="支付宝赞赏码" height="400" />
-  <img src="pic/weichat.jpg" alt="微信赞赏码" height="400" />
-</p>
+本次改造优先保证：
+
+- 登录流程不明显改变
+- 前端页面路由不明显改变
+- `/api/*` 使用方式不明显改变
+
+也就是说：
+
+- 用户访问方式基本一致
+- 前端页面和交互感知尽量不变
+- 主要变化集中在后端部署方式
+
+## 已知限制 / 后续建议
+
+1. 当前桥接链路依赖 Worker 能访问你的后端 HTTPS 地址
+2. 如果后端不可达，页面 API 和邮件写入都会失败
+3. 当前下载邮件原文依赖本地磁盘路径存在，建议生产环境做好备份
+4. 若未来邮件量很大，建议把本地磁盘层抽象成 S3 兼容对象存储
+5. 某些原始 D1 SQL 虽已兼容到 MySQL，但大规模生产前仍建议做一次更完整回归测试
 
 ## 许可证
 
-Apache-2.0 license
+Apache-2.0
