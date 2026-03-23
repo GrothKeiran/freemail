@@ -11,6 +11,17 @@ function mapRows(rows) {
   return Array.isArray(rows) ? rows : [];
 }
 
+function mapPragmaTableInfoSql(sql) {
+  const m = String(sql || '').match(/^\s*PRAGMA\s+table_info\(([^)]+)\)\s*$/i);
+  if (!m) return null;
+  const rawTable = String(m[1] || '').trim().replace(/^['"`]|['"`]$/g, '');
+  if (!rawTable) return null;
+  return {
+    sql: `SELECT COLUMN_NAME AS name FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION`,
+    params: [rawTable]
+  };
+}
+
 class Statement {
   constructor(pool, sql) {
     this.pool = pool;
@@ -24,11 +35,21 @@ class Statement {
   }
 
   async all() {
+    const pragmaInfo = mapPragmaTableInfoSql(this.sql);
+    if (pragmaInfo) {
+      const [rows] = await this.pool.query(pragmaInfo.sql, pragmaInfo.params);
+      return { results: mapRows(rows) };
+    }
     const [rows] = await this.pool.query(this.sql, this.params);
     return { results: mapRows(rows) };
   }
 
   async first() {
+    const pragmaInfo = mapPragmaTableInfoSql(this.sql);
+    if (pragmaInfo) {
+      const [rows] = await this.pool.query(pragmaInfo.sql, pragmaInfo.params);
+      return mapRows(rows)[0] || null;
+    }
     const [rows] = await this.pool.query(this.sql, this.params);
     return mapRows(rows)[0] || null;
   }
@@ -66,6 +87,9 @@ export function createMysqlAdapter(mysqlPool) {
           }
           if (upper === 'ROLLBACK') {
             await conn.rollback();
+            continue;
+          }
+          if (/^PRAGMA\s+/i.test(part)) {
             continue;
           }
           await conn.query(part);
