@@ -15,6 +15,7 @@ import { handleEmailReceive } from '../email/receiver.js';
  */
 export function createRouter() {
   const router = new Router();
+  router.use(authMiddleware);
 
   // =================== 认证相关路由 ===================
   router.post('/api/login', async (context) => {
